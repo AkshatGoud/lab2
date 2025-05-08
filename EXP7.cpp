@@ -1,184 +1,74 @@
 #include <iostream>
 #include <vector>
-#include <string>
-#include <cstring>
-#include <stack>
+#include <map>
 #include <set>
+#include <string>
+#include <cctype>
+
 using namespace std;
 
-int nt = 0, t = 0;
-vector<char> NT, T;
-vector<string> productions;
-char l[10][10], tr[10][10];
-stack<char> stk;
-
-int searchNT(char a)
-{
-    for (int i = 0; i < nt; i++)
-        if (NT[i] == a)
-            return i;
-    return -1;
-}
-
-int searchT(char a)
-{
-    for (int i = 0; i < t; i++)
-        if (T[i] == a)
-            return i;
-    return -1;
-}
-
-void push(char a, char b)
-{
-    stk.push(b);
-    stk.push(a);
-}
-
-void installLeading(int a, int b)
-{
-    if (l[a][b] == 'f')
-    {
-        l[a][b] = 't';
-        push(NT[a], T[b]);
-    }
-}
-
-void installTrailing(int a, int b)
-{
-    if (tr[a][b] == 'f')
-    {
-        tr[a][b] = 't';
-        push(NT[a], T[b]);
-    }
-}
-
-int main()
-{
+int main() {
     int n;
-    cout << "Enter the number of productions: ";
+    cout << "Enter number of productions: ";
     cin >> n;
-    productions.resize(n);
 
-    cout << "Enter productions one by one (e.g., E->E+T):\n";
-    for (int i = 0; i < n; i++)
-    {
-        cin >> productions[i];
-        if (searchNT(productions[i][0]) == -1)
-            NT.push_back(productions[i][0]), nt++;
+    // Read productions
+    // Expect format: A=α  (no spaces), e.g. E=E+T
+    map<char, vector<string>> prod;
+    for (int i = 0; i < n; i++) {
+        string s;
+        cout << "Enter production (e.g. E=E+T): ";
+        cin >> s;
+        char A = s[0];
+        string rhs = s.substr(2);
+        prod[A].push_back(rhs);
     }
 
-    for (int i = 0; i < n; i++)
-    {
-        for (size_t j = 3; j < productions[i].length(); j++)
-        {
-            char symbol = productions[i][j];
-            if (searchNT(symbol) == -1 && searchT(symbol) == -1)
-                T.push_back(symbol), t++;
-        }
-    }
+    // Initialize empty LEADING and TRAILING sets
+    map<char, set<char>> leading, trailing;
 
-    // Initialize LEADING and TRAILING tables
-    memset(l, 'f', sizeof(l));
-    memset(tr, 'f', sizeof(tr));
+    // Iteratively apply rules until no set changes
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (auto &p : prod) {
+            char A = p.first;
+            for (auto &rhs : p.second) {
+                // LEADING: look at first symbol of rhs
+                char X = rhs.front();
+                if (!isupper(X)) {
+                    // terminal
+                    if (leading[A].insert(X).second) changed = true;
+                } else {
+                    // non-terminal: union its LEADING
+                    for (char c : leading[X]) {
+                        if (leading[A].insert(c).second) changed = true;
+                    }
+                }
 
-    // Calculate LEADING
-    for (int i = 0; i < nt; i++)
-    {
-        for (int j = 0; j < n; j++)
-        {
-            if (productions[j][0] == NT[i])
-            {
-                char first = productions[j][3];
-                if (searchT(first) != -1)
-                    installLeading(i, searchT(first));
-                else
-                {
-                    for (size_t k = 3; k < productions[j].length(); k++)
-                    {
-                        if (searchNT(productions[j][k]) == -1)
-                        {
-                            installLeading(i, searchT(productions[j][k]));
-                            break;
-                        }
+                // TRAILING: look at last symbol of rhs
+                char Y = rhs.back();
+                if (!isupper(Y)) {
+                    if (trailing[A].insert(Y).second) changed = true;
+                } else {
+                    for (char c : trailing[Y]) {
+                        if (trailing[A].insert(c).second) changed = true;
                     }
                 }
             }
         }
     }
 
-    while (!stk.empty())
-    {
-        char b = stk.top();
-        stk.pop();
-        char a = stk.top();
-        stk.pop();
-        for (int i = 0; i < n; i++)
-        {
-            if (productions[i][3] == b)
-                installLeading(searchNT(productions[i][0]), searchT(a));
-        }
-    }
-
-    cout << "\nLEADING Sets:\n";
-    for (int i = 0; i < nt; i++)
-    {
-        cout << "LEADING(" << NT[i] << ") = { ";
-        for (int j = 0; j < t; j++)
-            if (l[i][j] == 't')
-                cout << T[j] << " ";
+    // Print results
+    cout << "\nComputed LEADING and TRAILING sets:\n";
+    for (auto &p : prod) {
+        char A = p.first;
+        cout << "LEADING(" << A << ") = { ";
+        for (char c : leading[A]) cout << c << ' ';
         cout << "}\n";
-    }
 
-    // Clear stack
-    while (!stk.empty())
-        stk.pop();
-
-    // Calculate TRAILING
-    for (int i = 0; i < nt; i++)
-    {
-        for (int j = 0; j < n; j++)
-        {
-            if (productions[j][0] == NT[i])
-            {
-                size_t lastIdx = productions[j].length() - 1;
-                char last = productions[j][lastIdx];
-                if (searchT(last) != -1)
-                    installTrailing(i, searchT(last));
-                else
-                {
-                    for (int k = lastIdx; k >= 3; k--)
-                    {
-                        if (searchNT(productions[j][k]) == -1)
-                        {
-                            installTrailing(i, searchT(productions[j][k]));
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    while (!stk.empty())
-    {
-        char b = stk.top();
-        stk.pop();
-        char a = stk.top();
-        stk.pop();
-        for (int i = 0; i < n; i++)
-        {
-            if (productions[i].back() == b)
-                installTrailing(searchNT(productions[i][0]), searchT(a));
-        }
-    }
-
-    cout << "\nTRAILING Sets:\n";
-    for (int i = 0; i < nt; i++)
-    {
-        cout << "TRAILING(" << NT[i] << ") = { ";
-        for (int j = 0; j < t; j++)
-            if (tr[i][j] == 't')
-                cout << T[j] << " ";
+        cout << "TRAILING(" << A << ") = { ";
+        for (char c : trailing[A]) cout << c << ' ';
         cout << "}\n";
     }
 
